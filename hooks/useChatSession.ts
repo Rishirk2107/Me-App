@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import storage from "../utils/storage";
-import { ChatSession, Message } from "../types/ChatSession";
+import { ChatSession, Message, AVAILABLE_MODELS } from "../types/ChatSession";
 
 const SESSIONS_KEY = "chat_sessions";
 const CURRENT_SESSION_KEY = "current_session_id";
+const DEFAULT_MODEL = AVAILABLE_MODELS[0];
 
 export function useChatSession() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -60,13 +61,14 @@ export function useChatSession() {
 
   // Create new session
   const createSession = useCallback(
-    async (title?: string) => {
+    async (title?: string, model?: string) => {
       const newSession: ChatSession = {
         id: `session_${Date.now()}`,
         title: title || `Chat ${new Date().toLocaleDateString()}`,
         messages: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        model: model || DEFAULT_MODEL,
       };
 
       const updatedSessions = [newSession, ...sessions];
@@ -148,6 +150,21 @@ export function useChatSession() {
     [sessions, saveSessions]
   );
 
+  // Update session model
+  const updateSessionModel = useCallback(
+    async (sessionId: string, newModel: string) => {
+      const updatedSessions = sessions.map((session) => {
+        if (session.id === sessionId) {
+          return { ...session, model: newModel, updatedAt: Date.now() };
+        }
+        return session;
+      });
+
+      await saveSessions(updatedSessions);
+    },
+    [sessions, saveSessions]
+  );
+
   // Clear all sessions
   const clearAllSessions = useCallback(async () => {
     await saveSessions([]);
@@ -169,6 +186,7 @@ export function useChatSession() {
     addMessage,
     getCurrentSession,
     updateSessionTitle,
+    updateSessionModel,
     clearAllSessions,
     loadSessions,
   };

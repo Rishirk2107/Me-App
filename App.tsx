@@ -12,10 +12,11 @@ import {
   View,
   Dimensions,
 } from "react-native";
-import { GROQ_API_KEY, GROQ_MODEL } from "@env";
+import { GROQ_API_KEY } from "@env";
 import Markdown from "react-native-markdown-display";
 import { useChatSession } from "./hooks/useChatSession";
 import ChatHistory from "./components/ChatHistory";
+import SessionSettings from "./components/SessionSettings";
 import { Message } from "./types/ChatSession";
 
 const screenWidth = Dimensions.get("window").width;
@@ -30,11 +31,13 @@ export default function App() {
     switchSession,
     addMessage,
     getCurrentSession,
+    updateSessionModel,
   } = useChatSession();
 
   const [messageLoading, setMessageLoading] = useState<boolean>(false);
   const [userInput, setUserInput] = useState<string>("");
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   // Initialize with first session or create one
   useEffect(() => {
@@ -47,7 +50,7 @@ export default function App() {
   const messages = currentSession?.messages || [];
 
   const SendMessage = async () => {
-    if (!userInput.trim() || !currentSessionId) return;
+    if (!userInput.trim() || !currentSessionId || !currentSession) return;
 
     setMessageLoading(true);
     const userText = userInput.trim();
@@ -59,7 +62,7 @@ export default function App() {
     try {
       console.log("Sending message to Groq API...");
       console.log("API Key loaded:", GROQ_API_KEY ? "Yes" : "No");
-      console.log("Model:", GROQ_MODEL || "llama-3.1-8b-instant");
+      console.log("Model:", currentSession.model);
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -68,7 +71,7 @@ export default function App() {
           "Authorization": `Bearer ${GROQ_API_KEY}`,
         },
         body: JSON.stringify({
-          model: GROQ_MODEL || "llama-3.1-8b-instant",
+          model: currentSession.model,
           messages: messages
             .filter((m) => currentSession)
             .map((m) => ({
@@ -134,6 +137,12 @@ export default function App() {
     await deleteSession(sessionId);
   };
 
+  const handleModelChange = async (model: string) => {
+    if (currentSessionId) {
+      await updateSessionModel(currentSessionId, model);
+    }
+  };
+
   const renderMessage = ({ item }: { item: Message }) => (
     <View
       style={[
@@ -173,7 +182,12 @@ export default function App() {
           <Text style={styles.headerText} numberOfLines={1}>
             {currentSession?.title || "AI Chatbot"}
           </Text>
-          <View style={styles.headerSpacer} />
+          <TouchableOpacity
+            onPress={() => setSettingsVisible(true)}
+            style={styles.settingsButton}
+          >
+            <Text style={styles.settingsIcon}>⚙</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.contentWrapper}>
@@ -250,6 +264,16 @@ export default function App() {
           </View>
         </View>
       </View>
+
+      {/* Settings Modal */}
+      {currentSession && (
+        <SessionSettings
+          visible={settingsVisible}
+          currentModel={currentSession.model}
+          onClose={() => setSettingsVisible(false)}
+          onModelChange={handleModelChange}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -298,8 +322,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
-  headerSpacer: {
-    width: 32,
+  settingsButton: {
+    padding: 6,
+    marginLeft: 4,
+  },
+  settingsIcon: {
+    fontSize: 18,
+    color: "#fff",
+    fontWeight: "bold",
   },
   contentWrapper: {
     flex: 1,
